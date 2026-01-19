@@ -1,1 +1,2 @@
 aiokafka~=0.13.0
+pyspark==4.1.1

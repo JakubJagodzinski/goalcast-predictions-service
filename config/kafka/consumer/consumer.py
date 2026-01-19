@@ -13,7 +13,11 @@ async def get_kafka_consumer(topic: str) -> AIOKafkaConsumer:
             bootstrap_servers=KAFKA_BOOTSTRAP_SERVERS,
             group_id=KAFKA_GROUP_ID,
             auto_offset_reset="earliest",
-            enable_auto_commit=True,
+            enable_auto_commit=False,
+            session_timeout_ms=60000,  # 60 seconds
+            heartbeat_interval_ms=15000,  # 15 seconds
+            max_poll_interval_ms=600000,  # 10 minutes for Spark processing
+            max_poll_records=1,
             value_deserializer=lambda v: v.decode("utf-8")
         )
         await consumer.start()

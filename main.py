@@ -1,7 +1,7 @@
 import asyncio
 import logging
 
-from events import prediction_request_event_consumer
+from events.PredictionRequestEventConsumer import PredictionRequestEventConsumer
 
 logging.basicConfig(
     level=logging.INFO,
@@ -10,12 +10,19 @@ logging.basicConfig(
 
 
 async def main():
-    await prediction_request_event_consumer.consume_and_predict()
+    consumer = PredictionRequestEventConsumer()
+
+    try:
+        await consumer.consume_and_predict()
+    except KeyboardInterrupt:
+        logging.info("\nInterrupted by user")
+    except Exception as e:
+        logging.error(f"Fatal error: {e}")
+        import traceback
+        traceback.print_exc()
+    finally:
+        logging.info("Cleanup complete")
 
 
-if __name__ == '__main__':
-    logging.info("Starting the model service")
-
+if __name__ == "__main__":
     asyncio.run(main())
-
-    logging.info("Model service stopped")
