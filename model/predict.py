@@ -1,4 +1,3 @@
-import logging
 import os
 import sys
 from pathlib import Path
@@ -44,16 +43,12 @@ def get_model(model_name: str) -> PipelineModel:
     model_path = model_paths.get(model_name)
     _model = _models.get(model_path)
     if _model is None:
-        logging.info(f"Loading model from {model_path}")
         _model = PipelineModel.load(str(model_path))
         _models[model_path] = _model
-        logging.info("Model loaded")
     return _model
 
 
 def predict_winner(home_team: str, away_team: str, model_name: str) -> tuple[str, float]:
-    logging.info(f"Predicting winner for {home_team} vs {away_team} (model: {model_name})")
-
     model = get_model(model_name)
 
     df_new = spark.createDataFrame(
@@ -69,7 +64,5 @@ def predict_winner(home_team: str, away_team: str, model_name: str) -> tuple[str
     row = predictions_with_conf.select("prediction", "confidence").collect()[0]
     winner = home_team if row['prediction'] == 1 else away_team
     confidence = row['confidence']
-
-    logging.info(f"Predicted: {winner} (confidence: {confidence:.2%})")
 
     return winner, confidence
