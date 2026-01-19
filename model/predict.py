@@ -1,4 +1,5 @@
 import os
+import random
 import sys
 from pathlib import Path
 
@@ -10,16 +11,18 @@ os.environ['HADOOP_HOME'] = 'C:\\hadoop'
 
 from pyspark.sql import SparkSession
 from pyspark.ml import PipelineModel
-from pyspark.sql.functions import udf
-from pyspark.sql.types import FloatType
 
 spark = (
     SparkSession.builder
-    .master("local[*]")
+    .master("local[2]")
     .appName("predictions-service")
     .config("spark.driver.memory", "4g")
     .config("spark.executor.memory", "4g")
     .config("spark.python.worker.memory", "2g")
+    .config("spark.driver.host", "127.0.0.1")
+    .config("spark.driver.bindAddress", "127.0.0.1")
+    .config("spark.network.timeout", "300s")
+    .config("spark.executor.heartbeatInterval", "60s")
     .config("spark.hadoop.fs.file.impl", "org.apache.hadoop.fs.LocalFileSystem")
     .config("spark.sql.warehouse.dir", "file:///C:/tmp/spark-warehouse")
     .config("spark.sql.execution.pyspark.udf.faulthandler.enabled", "true")
@@ -40,7 +43,11 @@ _models = {}
 def get_model(model_name: str) -> PipelineModel:
     global _models
 
-    model_path = model_paths.get(model_name)
+    if model_name == PredictionModelType.RANDOM.name.lower():
+        model_path = random.choice(list(model_paths.values()))
+    else:
+        model_path = model_paths.get(model_name)
+
     _model = _models.get(model_path)
     if _model is None:
         _model = PipelineModel.load(str(model_path))
@@ -48,21 +55,34 @@ def get_model(model_name: str) -> PipelineModel:
     return _model
 
 
-def predict_winner(home_team: str, away_team: str, model_name: str) -> tuple[str, float]:
-    model = get_model(model_name)
+def predict_winner(home_team: str, away_team: str, model_name: str) -> tuple[float, float, float]:
+    try:
+        model = get_model(model_name)
 
-    df_new = spark.createDataFrame(
-        [(home_team, away_team)],
-        ["home_team", "away_team"]
-    )
+        df_new = spark.createDataFrame(
+            [(home_team, away_team)],
+            ["home_team", "away_team"]
+        )
 
-    predictions = model.transform(df_new)
+        predictions = model.transform(df_new)
+        row = predictions.select("prediction", "probability").collect()[0]
 
-    prob_class1_udf = udf(lambda v: float(v[1]), FloatType())
-    predictions_with_conf = predictions.withColumn("confidence", prob_class1_udf("probability"))
+        prob_vector = row['probability']
 
-    row = predictions_with_conf.select("prediction", "confidence").collect()[0]
-    winner = home_team if row['prediction'] == 1 else away_team
-    confidence = row['confidence']
+        if len(prob_vector) == 3:
+            away_team_win = prob_vector[0]
+            draw = prob_vector[1]
+            home_team_win = prob_vector[2]
+        elif len(prob_vector) == 2:
+            away_team_win = prob_vector[0]
+            draw = 0
+            home_team_win = prob_vector[1]
+        else:
+            away_team_win = 0
+            draw = 0
+            home_team_win = 0
 
-    return winner, confidence
+        return home_team_win, away_team_win, draw
+
+    except Exception:
+        return 0, 0, 0

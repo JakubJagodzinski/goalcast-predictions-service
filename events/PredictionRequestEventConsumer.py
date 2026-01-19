@@ -24,10 +24,16 @@ class PredictionRequestEventConsumer:
                     data = json.loads(msg.value)
                     logging.info(f"Processing: {data}")
 
-                    winner, confidence = predict_winner(
+                    home_team_win, away_team_win, draw = predict_winner(
                         home_team=data.get('home_team'),
                         away_team=data.get('away_team'),
                         model_name=data.get('model_name')
+                    )
+
+                    error_occurred = all([
+                        home_team_win == 0,
+                        away_team_win == 0,
+                        draw == 0]
                     )
 
                     result = json.dumps({
@@ -35,8 +41,10 @@ class PredictionRequestEventConsumer:
                         'model_name': data.get('model_name'),
                         'home_team': data.get('home_team'),
                         'away_team': data.get('away_team'),
-                        'winner': winner,
-                        'confidence': float(confidence),
+                        'home_team_win': home_team_win,
+                        'away_team_win': away_team_win,
+                        'draw': draw,
+                        'error_occurred': error_occurred
                     })
 
                     await self.producer.send('predictions.responses.topic', value=result)
